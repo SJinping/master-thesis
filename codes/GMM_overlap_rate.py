@@ -1,9 +1,26 @@
+import sys
 import math
+import platform
+import operator
+import pprint
 import numpy as np
 import matplotlib.pyplot as plt
 from numpy.linalg import inv
 from itertools import combinations
 from scipy.stats import multivariate_normal
+
+_MAIN_DIR_ = ''
+_system_ = platform.system()
+if _system_ == 'Darwin':
+    _MAIN_DIR_ = '/Users/Pan/Idealab'
+elif _system_ == 'Linux':
+    _MAIN_DIR_ = '/home/pan/Idealab'
+
+# to calculate overlap rate of GMM, refer to https://github.com/SJinping/GMM-overlap-rate
+sys.path.append(_MAIN_DIR_ + "/codes/OverlapRate")
+import gmmOLR
+
+emotion_order = ['trust', 'fear', 'sadness', 'surprise', 'anger', 'disgust', 'anticipation', 'joy']
 
 GMM_sp = {'EC':{'mu': [(6.0993, 3.8252, 2.4539, 7.2055, 3.4726, 3.0073, 6.9598, 7.6250), (4.9331, 6.2736,2.9492,5.7133,4.4421,6.0294,6.606,7.0708)], 
                  'cov': [(2.1187, 2.3512, -0.9091), (2.8826, 2.6792, -2.1801), (0.9455, 1.0961, 0.7841), (1.2555, 2.7837, 0.2325), 
@@ -43,113 +60,12 @@ GMM_unsp = {'K8': {'mu':[(2.12410820378871, 5.07044858548973, 8.03800390218534, 
                                   (5.5898, 3.7957, 1.7101), (4.6391, 3.5581, 1.8529), (5.8595, 4.8818, 2.2050), (4.4889, 3.3669, -0.2802), (3.4633, 2.9142, 2.2118), (5.2831, 4.5213, -0.5929), (4.739, 3.6978, 1.2085)],
                           'pi':[0.0844373644545292, 0.0777526299762519, 0.0744078915818343, 0.0597389893015536, 0.0788435224621517, 0.0541217612974307, 0.0778534485945309, 0.100680266316155, 0.0772811214873126, 0.0936949611559137, 0.0374690948146188, 0.0403043159894312, 0.0655934972098239, 0.0778211353584632]}}
 
-class BiGauss(object):
-    """docstring for BiGauss"""
-    def __init__(self, mu1, mu2, Sigma1, Sigma2, pi1, pi2, steps = 1000):
-        super(BiGauss, self).__init__()
-        self.mu1      = mu1
-        self.mu2      = mu2
-        self.Sigma1   = Sigma1
-        self.Sigma2   = Sigma2
-        self.pi1      = pi1
-        self.pi2      = pi2
-        self.biGauss1 = multivariate_normal(mean = self.mu1, cov = self.Sigma1, allow_singular = True)
-        self.biGauss2 = multivariate_normal(mean = self.mu2, cov = self.Sigma2, allow_singular = True)
-        self.steps    = steps
-        self.inv_Sig1 = -inv(self.Sigma1)
-        self.inv_Sig2 = -inv(self.Sigma2)
-
-        self.A_1 = self.inv_Sig1[0][0]
-        self.B_1 = self.inv_Sig1[0][1]
-        self.C_1 = self.inv_Sig1[1][0]
-        self.D_1 = self.inv_Sig1[1][1]
-        self.A_2 = self.inv_Sig2[0][0]
-        self.B_2 = self.inv_Sig2[0][1]
-        self.C_2 = self.inv_Sig2[1][0]
-        self.D_2 = self.inv_Sig2[1][1]
-
-    def pdf(self, x):
-        return self.pi1 * self.biGauss1.pdf(x) + self.pi2 * self.biGauss2.pdf(x)
-
-    # Overlap rate
-    def OLR(self):
-        e      = math.sqrt((self.mu1[0] - self.mu2[0])**2 + (self.mu1[1] - self.mu2[1])**2) / float(self.steps)
-        x_step = e*(self.mu1[0]-self.mu2[0])
-        y_step = e*(self.mu1[1]-self.mu2[1])
-        p      = [self.mu1[0] - x_step, self.mu1[1] - y_step]
-        p_pre  = self.mu1
-        p_min = min(self.pdf(p), self.pdf(p_pre))
-        index  = 0
-        while index < self.steps:
-            p_next = [p[0] - x_step, p[1] - y_step]
-            if self.pdf(p) > self.pdf(p_pre) and self.pdf(p) > self.pdf(p_next):
-                p_max = self.pdf(p)
-            if self.pdf(p) < self.pdf(p_pre) and self.pdf(p) < self.pdf(p_next):
-                p_min = self.pdf(p)
-            p_pre = p
-            p     = p_next
-            index += 1
-
-        pdf_mu1 = self.pdf(self.mu1)
-        pdf_mu2 = self.pdf(self.mu2)
-        return p_min / min(pdf_mu1, pdf_mu2) if p_min < min(pdf_mu1, pdf_mu2) else 1.0
-
-    def OLR2(self):
-        e      = math.sqrt((self.mu1[0] - self.mu2[0])**2 + (self.mu1[1] - self.mu2[1])**2) / float(self.steps)
-        x_step = e*(self.mu1[0]-self.mu2[0])
-        y_step = e*(self.mu1[1]-self.mu2[1])
-        p_x = self.mu1[0] - x_step
-        while self.RC(p_x) == None:
-            p_x = p_x - x_step
-        p_y = self.RC(p_x)
-        p = [p_x, p_y]
-        p_pre  = self.mu1
-        p_min = min(self.pdf(p), self.pdf(p_pre))
-        p_max = max(self.pdf(p), self.pdf(p_pre))
-        index  = 0
-        while index < self.steps:
-            if self.RC(p[0] - x_step) != None:
-                p_next = [p[0] - x_step, self.RC(p[0] - x_step)]
-                if self.pdf(p) > self.pdf(p_pre) and self.pdf(p) > self.pdf(p_next):
-                    p_max = self.pdf(p)
-                if self.pdf(p) < self.pdf(p_pre) and self.pdf(p) < self.pdf(p_next):
-                    p_min = self.pdf(p)
-            p_pre = p
-            p     = p_next
-            index += 1
-
-        pdf_mu1 = self.pdf(self.mu1)
-        pdf_mu2 = self.pdf(self.mu2)
-        return p_min / min(pdf_mu1, pdf_mu2) if p_min < min(pdf_mu1, pdf_mu2) else 1.0
-
-    # get y given x, satisfying (x,y) is on the RC
-    def RC(self, x):
-        E = self.A_1 * (x - self.mu1[0])
-        F = self.C_1 * (x - self.mu1[0])
-        G = self.A_2 * (x - self.mu2[0])
-        H = self.C_2 * (x - self.mu2[0])
-
-        I = E * self.D_2 - F * self.B_2
-        J = H * self.B_1 - G * self.D_1
-        K = self.B_1 * self.D_2 - self.B_2 * self.D_1
-        M = F * G - E * H
-
-        P = K
-        Q = I + J - K * (self.mu2[1] + self.mu1[1])
-        S = -(M + I * self.mu2[1] + J * self.mu1[1])
-
-        if Q**2 - 4*P*S < 0:
-            return None
-
-        y = max((-Q + math.sqrt(Q**2 - 4*P*S)) / (2*P), (-Q - math.sqrt(Q**2 - 4*P*S)) / (2*P))
-
-        return y
-
 
 
 if __name__ == '__main__':
     
-    # GMM = GMM_sp
+    GMM = GMM_sp
+    # calculate the average OLR
     # for key, vals in GMM.items():
     #     # if key != 'LDA8':
     #     #     continue
@@ -158,38 +74,30 @@ if __name__ == '__main__':
     #     pi = GMM[key]['pi']
     #     OLRs = []
     #     for GMM1, GMM2 in combinations(zip(mu, covs, pi), 2):
-    #         biGauss = BiGauss(GMM1[0], GMM2[0], GMM1[1], GMM2[1], GMM1[2], GMM2[2])
-    #         OLR = biGauss.OLR2()
+    #         biGauss = gmmOLR.BiGauss(GMM1[0], GMM2[0], GMM1[1], GMM2[1], GMM1[2], GMM2[2])
+    #         OLR = biGauss.OLR()
     #         OLRs.append(OLR)
     #     OLR = np.mean(OLRs)
     #     print(key, OLR)
-    #     print(OLRs)
 
-    # Single sample
-    pi1 = 0.47
-    pi2 = 1.0 - pi1
-    mu1 = [0,0]
-    mu2 = [3,0]
-    Sigma1 = [[1,0],[0,1]]
-    Sigma2 = [[2.17,1.82], [1.82,2.17]]
-    Bi = BiGauss(mu1, mu2, Sigma1, Sigma2, pi1, pi2)
-    print(Bi.OLR2())
+    # calculate the emotion pair OLR
+    for key, vals in GMM.items():
+        K    = len(vals['mu'][0])
+        mu   = list(zip(vals['mu'][0], vals['mu'][1]))
+        covs = [np.array([[cov[0], cov[2]], [cov[2], cov[1]]]) for cov in vals['cov']]
+        pi   = GMM[key]['pi']
+        OLRs = []
+        print(key)
+        for GMM1, GMM2 in combinations(zip(emotion_order, mu, covs, pi), 2):
+            # print('{}-{}'.format(GMM1[0], GMM2[0]))
+            # pprint.pprint(GMM1)
+            # pprint.pprint(GMM2)
+            # print('------------------')
+            pi1 = GMM1[3] / (GMM1[3] + GMM2[3])
+            pi2 = GMM2[3] / (GMM1[3] + GMM2[3])
+            biGauss = gmmOLR.BiGauss(GMM1[1], GMM2[1], GMM1[2], GMM2[2], pi1, pi2)
+            OLRs.append(('{}-{}'.format(GMM1[0], GMM2[0]), biGauss.OLR()))
+        OLRs = sorted(OLRs, key = operator.itemgetter(1), reverse = True)
+        # pprint.pprint(OLRs)
+        pprint.pprint(OLRs[:5])
 
-
-    # step = 0.1
-    # pi1 = 0.5
-    # OLRs = []
-    # x = []
-    # mu1 = [0,0]
-    # mu2 = [0,0]
-    # Sigma1 = [[1,0],[0,1]]
-    # Sigma2 = [[2.17,1.82], [1.82,2.17]]
-    # while mu2[0] <= 8.0:
-    #     pi2 = 1.0-pi1
-    #     Bi = BiGauss(mu1, mu2, Sigma1, Sigma2, pi1, pi2)
-    #     OLRs.append(Bi.OLR2())
-    #     x.append(mu2[0])
-    #     mu2[0] += step
-    # print(OLRs)
-    # plt.plot(x, OLRs)
-    # plt.show()
