@@ -18,7 +18,6 @@ from tensorflow.contrib import learn
 tf.flags.DEFINE_string("positive_data_file", "./data/rt-polaritydata/rt-polarity.pos", "Data source for the positive data.")
 tf.flags.DEFINE_string("negative_data_file", "./data/rt-polaritydata/rt-polarity.neg", "Data source for the positive data.")
 tf.flags.DEFINE_string("fb_text_file", "/home/pan/Idealab/Data/VA_Proc/emtion_tweets/survey/turk_survey_data_ABC_score.csv", "Data source for testing.")
-tf.flags.DEFINE_string("question_file", "/home/pan/Idealab/NTHU/Semester-6/NLP/term_project/questions_dup_testing.csv", "Data source for testing")
 
 # Eval Parameters
 tf.flags.DEFINE_integer("batch_size", 64, "Batch Size (default: 64)")
@@ -40,8 +39,7 @@ print("")
 # CHANGE THIS: Load data. Load your own data here
 if FLAGS.eval_train:
     # x_raw, y_test = data_helpers.load_data_and_labels(FLAGS.positive_data_file, FLAGS.negative_data_file)
-    # x_raw, y_test = data_helpers.load_fb_data_and_labels(FLAGS.fb_text_file)
-    x_raw, y_test = data_helpers.load_data_and_labels_questions(FLAGS.question_file)
+    x_raw, y_test = data_helpers.load_fb_data_and_labels(FLAGS.fb_text_file)
     y_test = np.argmax(y_test, axis=1)
 else:
     x_raw = ["a masterpiece four years in the making", "everything is off."]

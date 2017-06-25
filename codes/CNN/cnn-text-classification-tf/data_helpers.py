@@ -7,12 +7,6 @@ import itertools
 from collections import Counter
 from nltk.tokenize import TweetTokenizer
 
-stopword_list = ['什麼', '請問', '這裡', '不是', '意思', '這邊', '謝謝', '這句', '為何', '使用', '怎麼', \
-                 '要加', '老師', '還是', '如何', '甚麼', '一下', '這個', '這樣', '問為', '因為', '何要', \
-                 '用過', '是不是', '一個', '應該', '直接', '好像', '如果', '何不', '兩個', '這是', '何用', \
-                 '需要', '時候', '所以', '您好', '起來', '還有', '加上', '寫成', '你好', '此句', '有點', \
-                 '問此', '不好意思', '不到', '像是', '這裏', '為什麼']
-
 
 def Chinese_tokenizer(string):
     segs = jieba.cut(string, cut_all = False)
@@ -82,22 +76,6 @@ def load_data_and_labels_emotion(emotion_text_file):
             y.append(labels)
     return [x_text, np.array(y)]
 
-def load_data_and_labels_questions(question_file):
-    question = ['others', 'perfect', 'continuous', 'past', 'future', 'relative pronouns', 'infinitive', \
-               'clause', 'passive', 'prep', 'conj', 'subjective', 'V-ing', 'past participle', 'PT']
-
-    x_text   = list()
-    y        = list()
-    with open(question_file) as csvfile:
-        spamreader = csv.reader(csvfile, delimiter = ',', quotechar = '"')
-        header = next(spamreader)
-        for row in spamreader:
-            labels = [0 for _ in range(len(question))]
-            string = Chinese_tokenizer(row[2])
-            labels[int(row[3])] = 1
-            x_text.append(string)
-            y.append(labels)
-    return [x_text, np.array(y)]
 
 def load_data_and_labels_sentiment(sentiment_file):
     sentiment = ['neg', 'pos']
